@@ -1,0 +1,364 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model comment_reactions {
+  comment_id String        @db.Uuid
+  user_id    String        @db.Uuid
+  type       reaction_type
+  created_at DateTime?     @default(now()) @db.Timestamptz(6)
+  comments   comments      @relation(fields: [comment_id], references: [comment_id], onDelete: Cascade, onUpdate: NoAction)
+  users      users         @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([comment_id, user_id])
+}
+
+model comments {
+  comment_id        String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  post_id           String              @db.Uuid
+  user_id           String              @db.Uuid
+  parent_comment_id String?             @db.Uuid
+  content           String
+  media_url         String?
+  likes_count       Int?                @default(0)
+  reply_count       Int?                @default(0)
+  created_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime?           @default(now()) @db.Timestamptz(6)
+  deleted_at        DateTime?           @db.Timestamptz(6)
+  comment_reactions comment_reactions[]
+  comments          comments?           @relation("commentsTocomments", fields: [parent_comment_id], references: [comment_id], onDelete: Cascade, onUpdate: NoAction)
+  other_comments    comments[]          @relation("commentsTocomments")
+  posts             posts               @relation(fields: [post_id], references: [post_id], onDelete: NoAction, onUpdate: NoAction)
+  users             users               @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([parent_comment_id], map: "idx_comments_parent")
+  @@index([post_id, created_at], map: "idx_comments_post_time")
+  @@index([parent_comment_id, created_at], map: "idx_comments_replies")
+}
+
+model conversation_participants {
+  conversation_id String        @db.Uuid
+  user_id         String        @db.Uuid
+  nickname        String?
+  joined_at       DateTime?     @default(now()) @db.Timestamptz(6)
+  last_read_at    DateTime?     @db.Timestamptz(6)
+  conversations   conversations @relation(fields: [conversation_id], references: [conversation_id], onDelete: Cascade, onUpdate: NoAction)
+  users           users         @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([conversation_id, user_id])
+}
+
+model conversations {
+  conversation_id           String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type                      conversation_type_enum?     @default(DIRECT)
+  title                     String?
+  last_message_id           String?                     @db.Uuid
+  last_message_at           DateTime?                   @default(now()) @db.Timestamptz(6)
+  created_at                DateTime?                   @default(now()) @db.Timestamptz(6)
+  conversation_participants conversation_participants[]
+}
+
+model follows {
+  follower_id                      String    @db.Uuid
+  followee_id                      String    @db.Uuid
+  created_at                       DateTime? @default(now()) @db.Timestamptz(6)
+  deleted_at                       DateTime? @db.Timestamptz(6)
+  users_follows_followee_idTousers users     @relation("follows_followee_idTousers", fields: [followee_id], references: [user_id], onUpdate: NoAction)
+  users_follows_follower_idTousers users     @relation("follows_follower_idTousers", fields: [follower_id], references: [user_id], onUpdate: NoAction)
+
+  @@id([follower_id, followee_id])
+  @@index([followee_id], map: "idx_follows_followee")
+  @@index([follower_id], map: "idx_follows_follower")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model friendships {
+  user_id                            String    @db.Uuid
+  friend_id                          String    @db.Uuid
+  status                             String?   @default("PENDING")
+  created_at                         DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at                         DateTime? @default(now()) @db.Timestamptz(6)
+  deleted_at                         DateTime? @db.Timestamptz(6)
+  users_friendships_friend_idTousers users     @relation("friendships_friend_idTousers", fields: [friend_id], references: [user_id], onUpdate: NoAction)
+  users_friendships_user_idTousers   users     @relation("friendships_user_idTousers", fields: [user_id], references: [user_id], onUpdate: NoAction)
+
+  @@id([user_id, friend_id])
+  @@index([friend_id, status], map: "idx_friendships_friend_status")
+  @@index([user_id, status], map: "idx_friendships_user_status")
+}
+
+model group_members {
+  group_id  String                  @db.Uuid
+  user_id   String                  @db.Uuid
+  role      group_member_role_enum? @default(MEMBER)
+  joined_at DateTime?               @default(now()) @db.Timestamptz(6)
+  groups    groups                  @relation(fields: [group_id], references: [group_id], onDelete: Cascade, onUpdate: NoAction)
+  users     users                   @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([group_id, user_id])
+  @@index([user_id], map: "idx_group_members_user")
+}
+
+model groups {
+  group_id      String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  slug          String?             @unique
+  description   String?
+  privacy       group_privacy_enum? @default(PUBLIC)
+  owner_id      String              @db.Uuid
+  is_archived   Boolean?            @default(false)
+  member_count  Int?                @default(1)
+  created_at    DateTime?           @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime?           @default(now()) @db.Timestamptz(6)
+  group_members group_members[]
+  users         users               @relation(fields: [owner_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  posts         posts[]
+}
+
+model maintenance_jobs {
+  job_id      BigInt    @id @default(autoincrement())
+  entity_type String
+  entity_id   String    @db.Uuid
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  processed   Boolean?  @default(false)
+}
+
+model media_files {
+  media_id   String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String           @db.Uuid
+  post_id    String?          @db.Uuid
+  media_type media_type_enum?
+  url        String
+  metadata   Json?            @default("{}")
+  sort_order Int?             @default(0)
+  created_at DateTime?        @default(now()) @db.Timestamptz(6)
+  posts      posts?           @relation(fields: [post_id], references: [post_id], onDelete: NoAction, onUpdate: NoAction)
+  users      users            @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([post_id], map: "idx_media_post")
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+model messages {
+  message_id      String   @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversation_id String   @db.Uuid
+  sender_id       String   @db.Uuid
+  content         String?
+  attachment_url  String?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([created_at, message_id])
+  @@index([conversation_id, created_at(sort: Desc)], map: "idx_messages_conv_time")
+  @@index([conversation_id, created_at(sort: Desc)], map: "idx_messages_conversation_time")
+}
+
+/// This table is a partition table and requires additional setup for migrations. Visit https://pris.ly/d/partition-tables for more info.
+model news_feed {
+  user_id    String   @db.Uuid
+  post_id    String   @db.Uuid
+  author_id  String   @db.Uuid
+  created_at DateTime @db.Timestamptz(6)
+
+  @@id([user_id, post_id])
+  @@index([user_id, created_at(sort: Desc)], map: "idx_news_feed_timeline")
+}
+
+model notifications {
+  notification_id                        String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  receiver_id                            String                 @db.Uuid
+  actor_id                               String                 @db.Uuid
+  type                                   notification_type_enum
+  meta                                   Json?                  @default("{}")
+  is_read                                Boolean?               @default(false)
+  is_seen                                Boolean?               @default(false)
+  created_at                             DateTime?              @default(now()) @db.Timestamptz(6)
+  users_notifications_actor_idTousers    users                  @relation("notifications_actor_idTousers", fields: [actor_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+  users_notifications_receiver_idTousers users                  @relation("notifications_receiver_idTousers", fields: [receiver_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([actor_id, created_at(sort: Desc)], map: "idx_notifications_actor_time")
+  @@index([receiver_id, created_at(sort: Desc)], map: "idx_notifications_receiver_time")
+}
+
+model post_reactions {
+  post_id    String        @db.Uuid
+  user_id    String        @db.Uuid
+  type       reaction_type
+  created_at DateTime?     @default(now()) @db.Timestamptz(6)
+  posts      posts         @relation(fields: [post_id], references: [post_id], onDelete: NoAction, onUpdate: NoAction)
+  users      users         @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([post_id, user_id])
+}
+
+model posts {
+  post_id          String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String                   @db.Uuid
+  group_id         String?                  @db.Uuid
+  original_post_id String?                  @db.Uuid
+  content          String?
+  privacy          privacy_level?           @default(PUBLIC)
+  location_name    String?
+  coordinates      Unsupported("point")?
+  likes_count      Int?                     @default(0)
+  comments_count   Int?                     @default(0)
+  shares_count     Int?                     @default(0)
+  created_at       DateTime?                @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime?                @default(now()) @db.Timestamptz(6)
+  deleted_at       DateTime?                @db.Timestamptz(6)
+  search_vector    Unsupported("tsvector")?
+  comments         comments[]
+  media_files      media_files[]
+  post_reactions   post_reactions[]
+  groups           groups?                  @relation(fields: [group_id], references: [group_id], onDelete: NoAction, onUpdate: NoAction)
+  posts            posts?                   @relation("postsToposts", fields: [original_post_id], references: [post_id], onDelete: NoAction, onUpdate: NoAction)
+  other_posts      posts[]                  @relation("postsToposts")
+  users            users                    @relation(fields: [user_id], references: [user_id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([original_post_id], map: "idx_posts_original")
+  @@index([search_vector], map: "idx_posts_search_vector", type: Gin)
+}
+
+model user_blocks {
+  blocker_id                          String    @db.Uuid
+  blocked_id                          String    @db.Uuid
+  created_at                          DateTime? @default(now()) @db.Timestamptz(6)
+  deleted_at                          DateTime? @db.Timestamptz(6)
+  users_user_blocks_blocked_idTousers users     @relation("user_blocks_blocked_idTousers", fields: [blocked_id], references: [user_id], onUpdate: NoAction)
+  users_user_blocks_blocker_idTousers users     @relation("user_blocks_blocker_idTousers", fields: [blocker_id], references: [user_id], onUpdate: NoAction)
+
+  @@id([blocker_id, blocked_id])
+}
+
+model user_profiles {
+  user_id       String                   @id @db.Uuid
+  first_name    String?
+  last_name     String?
+  bio           String?
+  avatar_url    String?
+  cover_url     String?
+  date_of_birth DateTime?                @db.Date
+  location      String?
+  website       String?
+  search_vector Unsupported("tsvector")?
+  updated_at    DateTime?                @default(now()) @db.Timestamptz(6)
+  deleted_at    DateTime?                @db.Timestamptz(6)
+  users         users                    @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([last_name, first_name], map: "idx_profiles_fullname")
+  @@index([search_vector], map: "idx_profiles_search_vec", type: Gin)
+}
+
+model users {
+  user_id                                        String                      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username                                       String                      @unique(map: "uq_users_username")
+  email                                          String                      @unique(map: "uq_users_email")
+  gender                                         gender_enum
+  password_hash                                  String
+  phone_number                                   String?                     @unique(map: "uq_users_phone")
+  role                                           role_enum?                  @default(USER)
+  is_verified                                    Boolean?                    @default(false)
+  is_active                                      Boolean?                    @default(true)
+  last_login_at                                  DateTime?                   @db.Timestamptz(6)
+  created_at                                     DateTime?                   @default(now()) @db.Timestamptz(6)
+  updated_at                                     DateTime?                   @default(now()) @db.Timestamptz(6)
+  deleted_at                                     DateTime?                   @db.Timestamptz(6)
+  comment_reactions                              comment_reactions[]
+  comments                                       comments[]
+  conversation_participants                      conversation_participants[]
+  follows_follows_followee_idTousers             follows[]                   @relation("follows_followee_idTousers")
+  follows_follows_follower_idTousers             follows[]                   @relation("follows_follower_idTousers")
+  friendships_friendships_friend_idTousers       friendships[]               @relation("friendships_friend_idTousers")
+  friendships_friendships_user_idTousers         friendships[]               @relation("friendships_user_idTousers")
+  group_members                                  group_members[]
+  groups                                         groups[]
+  media_files                                    media_files[]
+  notifications_notifications_actor_idTousers    notifications[]             @relation("notifications_actor_idTousers")
+  notifications_notifications_receiver_idTousers notifications[]             @relation("notifications_receiver_idTousers")
+  post_reactions                                 post_reactions[]
+  posts                                          posts[]
+  user_blocks_user_blocks_blocked_idTousers      user_blocks[]               @relation("user_blocks_blocked_idTousers")
+  user_blocks_user_blocks_blocker_idTousers      user_blocks[]               @relation("user_blocks_blocker_idTousers")
+  user_profiles                                  user_profiles?
+
+  @@index([email], map: "idx_users_email")
+  @@index([username(ops: raw("gin_trgm_ops"))], map: "idx_users_username_trgm", type: Gin)
+}
+
+enum content_type {
+  TEXT
+  IMAGE
+  VIDEO
+  LINK
+}
+
+enum conversation_type_enum {
+  DIRECT
+  GROUP
+}
+
+enum gender_enum {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum group_member_role_enum {
+  MEMBER
+  ADMIN
+  MODERATOR
+}
+
+enum group_privacy_enum {
+  PUBLIC
+  PRIVATE
+  SECRET
+}
+
+enum media_type_enum {
+  IMAGE
+  VIDEO
+  DOCUMENT
+}
+
+enum notification_type_enum {
+  LIKE_POST
+  LIKE_COMMENT
+  COMMENT_POST
+  REPLY_COMMENT
+  SHARE_POST
+  FRIEND_REQUEST
+  FRIEND_ACCEPT
+  TAG_POST
+  TAG_COMMENT
+  GROUP_INVITE
+  GROUP_POST
+  NEW_MESSAGE
+}
+
+enum privacy_level {
+  PUBLIC
+  FRIENDS
+  ONLY_ME
+  GROUP
+}
+
+enum reaction_type {
+  LIKE
+  LOVE
+  HAHA
+  WOW
+  SAD
+  ANGRY
+}
+
+enum role_enum {
+  USER
+  ADMIN
+  MODERATOR
+}
