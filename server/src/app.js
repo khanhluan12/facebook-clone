@@ -1,7 +1,7 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db'); 
-
+const cors = require('cors');
 
 dotenv.config();
 
@@ -9,15 +9,27 @@ const app = express();
 
 
 app.use(express.json());
-
+app.use(cors);
 
 connectDB();
 
 
-app.get('/', (req, res) => {
-    res.send('Server is running...');
-});
+const authRoutes = require('./routes/authRoutes')
+app.use('/api/auth',authRoutes);
 
+
+
+app.use((err, req, res, next) => {
+  console.error(err.stack); 
+
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'Internal Server Error';
+
+  res.status(statusCode).json({
+    status: 'error',
+    message: message
+  });
+});
 
 const PORT = process.env.PORT || 5000;
 

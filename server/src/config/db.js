@@ -1,34 +1,21 @@
-const { Pool } = require('pg');
-require('dotenv').config(); 
+import "dotenv/config";
+import { PrismaClient } from '@prisma/client'; // ✅ Dùng Named Import
 
-// Cấu hình kết nối từ biến môi trường
-const pool = new Pool({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_DATABASE,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
-    ssl: {
-      
-        rejectUnauthorized: false
-    }
+// ✅ Khởi tạo trực tiếp, không dùng .default
+const prisma = new PrismaClient({
+  log: ['query', 'info', 'warn', 'error'],
 });
 
-// Kiểm tra kết nối
-pool.connect((err, client, release) => {
-    if (err) {
-        return console.error('Lỗi khi kết nối tới PostgreSQL/Supabase:', err.stack);
-    }
-    client.query('SELECT NOW()', (err, result) => {
-        release();
-        if (err) {
-            return console.error('Lỗi khi thực hiện query kiểm tra:', err.stack);
-        }
-        console.log('Kết nối tới Supabase PostgreSQL thành công! Thời gian hiện tại:', result.rows[0].now);
-    });
-});
+async function checkConnection() {
+  try {
+    await prisma.$connect();
+    console.log('✅ Kết nối tới Supabase PostgreSQL thành công!');
+  } catch (error) {
+    console.error('❌ Lỗi kết nối Prisma:', error);
+    process.exit(1);
+  }
+}
 
-module.exports = {
-    query: (text, params) => pool.query(text, params),
-    pool, // Export pool nếu cần truy cập client trực tiếp
-};
+checkConnection();
+
+export default prisma;
